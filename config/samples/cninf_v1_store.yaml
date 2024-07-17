@@ -1,0 +1,9 @@
+apiVersion: cninf.uman.test/v1
+kind: Store
+metadata:
+  labels:
+    app.kubernetes.io/name: cninf
+    app.kubernetes.io/managed-by: kustomize
+  name: store-sample
+spec:
+  # TODO(user): Add fields here
