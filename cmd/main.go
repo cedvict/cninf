@@ -19,6 +19,11 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/pkg/errors"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -58,7 +63,7 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
-	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -139,9 +144,39 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Add business logic controllers
+	accessKey, ok := os.LookupEnv("ACCESS_KEY_ID")
+	if !ok {
+		setupLog.Error(errors.New("Load access key failed"), "unable to load environment")
+		os.Exit(2)
+	}
+	secretKey, ok := os.LookupEnv("SECRET_ACCESS_KEY")
+	if !ok {
+		setupLog.Error(errors.New("Load secret key failed"), "unable to load environment")
+		os.Exit(2)
+	}
+	region, ok := os.LookupEnv("REGION")
+	if !ok {
+		setupLog.Error(errors.New("Load region failed"), "unable to load environment")
+		os.Exit(2)
+	}
+	endpoint, ok := os.LookupEnv("ENDPOINT_URL")
+	if !ok {
+		setupLog.Error(errors.New("Load endpoint url failed"), "unable to load environment")
+		os.Exit(2)
+	}
+
+	clientSession, err := session.NewSession(&aws.Config{
+		Region:      aws.String(region),
+		Credentials: credentials.NewStaticCredentials(accessKey, secretKey, ""),
+		Endpoint:    aws.String(endpoint),
+	})
+	// End of business logic controllers
+
 	if err = (&controller.StoreReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		S3svc:  s3.New(clientSession),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Store")
 		os.Exit(1)

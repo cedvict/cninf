@@ -20,6 +20,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	CREATING_STATE = "CREATING"
+	CREATED_STATE  = "CREATED"
+	DELETING_STATE = "DELETING"
+	DELETED_STATE  = "DELETED"
+	ERROR_STATE    = "ERROR"
+	PENDING_STATE  = "PENDING"
+)
+
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
@@ -40,10 +49,18 @@ type StoreSpec struct {
 type StoreStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	// State is a current state of storage.
+	State string `json:"state"`
+	// Message is a details about execution.
+	Message string `json:"message"`
+	// Error is a trace about execution.
+	Trace string `json:"trace"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
 
 // Store is the Schema for the stores API
 type Store struct {

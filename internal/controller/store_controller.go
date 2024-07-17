@@ -19,6 +19,16 @@ package controller
 import (
 	"context"
 
+	// AWS SDK imports
+	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
+
+	// Kubernetes object imports
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	// Kubernetes imports
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -27,15 +37,20 @@ import (
 	cninfv1 "github.com/cedvict/cninf.git/api/v1"
 )
 
+const configMapName = "%s-configmap"
+
 // StoreReconciler reconciles a Store object
 type StoreReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	S3svc  *s3.S3
 }
 
 // +kubebuilder:rbac:groups=cninf.uman.test,resources=stores,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cninf.uman.test,resources=stores/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cninf.uman.test,resources=stores/finalizers,verbs=update
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cninf.uman.test,resources=stores,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -47,8 +62,27 @@ type StoreReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *StoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logCtx := log.FromContext(ctx)
 
+	instance := &cninfv1.Store{}
+	if err := r.Get(ctx, req.NamespacedName, instance); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			logCtx.Info("Store resource not found. Ignoring since object must be deleted.")
+			return ctrl.Result{}, nil
+		}
+		logCtx.Error(err, "Failed to get Store")
+		return ctrl.Result{}, err
+
+	}
+
+	if instance.Status.State == "" {
+		instance.Status.State = cninfv1.PENDING_STATE
+		instance.Status.Message = "Trying to create Store"
+		if err := r.Status().Update(ctx, instance); err != nil {
+			logCtx.Error(err, "Failed to update Store status")
+			return ctrl.Result{}, err
+		}
+	}
 	// TODO(user): your logic here
 
 	return ctrl.Result{}, nil
@@ -59,4 +93,112 @@ func (r *StoreReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cninfv1.Store{}).
 		Complete(r)
+}
+
+// CreateResources creates the resources for the Store
+func (r *StoreReconciler) CreateResources(ctx context.Context, instance *cninfv1.Store) error {
+	// Add the status first
+	instance.Status.State = cninfv1.CREATING_STATE
+	instance.Status.Message = "Creating storage"
+	if err := r.Status().Update(ctx, instance); err != nil {
+		return err
+	}
+
+	// Create the input for the request
+	bucketName := fmt.Sprintf("%s-%s", instance.Namespace, instance.Spec.Name)
+	if instance.Spec.Shared {
+		bucketName = instance.Spec.Name
+	}
+	input := &s3.CreateBucketInput{
+		Bucket:                     aws.String(bucketName),
+		ObjectLockEnabledForBucket: aws.Bool(instance.Spec.Locked),
+	}
+
+	// Create the bucket
+	bucket, err := r.S3svc.CreateBucket(input)
+	if err != nil {
+		return err
+	}
+
+	// Wait for the bucket to be created
+	err = r.S3svc.WaitUntilBucketExists(&s3.HeadBucketInput{
+		Bucket: aws.String(instance.Spec.Name),
+	})
+	if err != nil {
+		return err
+	}
+
+	// Create the configmap
+	configMap := &v1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf(configMapName, instance.Spec.Name),
+			Namespace: instance.Namespace,
+		},
+		Data: map[string]string{
+			"bucket":   bucketName,
+			"location": *bucket.Location,
+		},
+	}
+	err = r.Create(ctx, configMap)
+	if err != nil {
+		return err
+	}
+
+	// Update the status
+	instance.Status.State = cninfv1.CREATED_STATE
+	instance.Status.Message = "Storage created"
+	if err := r.Status().Update(ctx, instance); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteResources deletes the resources for the Store
+func (r *StoreReconciler) DeleteResources(ctx context.Context, instance *cninfv1.Store) error {
+	// Add the status first
+	instance.Status.State = cninfv1.DELETING_STATE
+	instance.Status.Message = "Deleting storage"
+	if err := r.Status().Update(ctx, instance); err != nil {
+		return err
+	}
+
+	// Delete the bucket
+	bucketName := fmt.Sprintf("%s-%s", instance.Namespace, instance.Spec.Name)
+	if instance.Spec.Shared {
+		bucketName = instance.Spec.Name
+	}
+	_, err := r.S3svc.DeleteBucket(&s3.DeleteBucketInput{
+		Bucket: aws.String(bucketName),
+	})
+	if err != nil {
+		return err
+	}
+
+	// Delete the configmap
+	configMap := &v1.ConfigMap{}
+	err = r.Get(ctx, client.ObjectKey{
+		Namespace: instance.Namespace,
+		Name:      fmt.Sprintf(configMapName, instance.Spec.Name),
+	}, configMap)
+	if err != nil {
+		return err
+	}
+	err = r.Delete(ctx, configMap)
+	if err != nil {
+		return err
+	}
+
+	// Update the status
+	instance.Status.State = cninfv1.DELETED_STATE
+	instance.Status.Message = "Storage deleted"
+	if err := r.Status().Update(ctx, instance); err != nil {
+		return err
+	}
+
+	return nil
 }
