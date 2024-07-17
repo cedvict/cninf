@@ -115,5 +115,11 @@ EOF
 
 ````bash
 mkdir -p $HOME/Workspace/cninf
-kubebuilder init --domain uman.test --repo github.com/cedvict/cninf.git
+kubebuilder init --domain uman.test --repo github.com/cedvict/cninf --plugins=go/v4
+````
+
+## Create api
+
+````bash
+kubebuilder create api --group cninf --version v1 --kind Store --resource --controller
 ````

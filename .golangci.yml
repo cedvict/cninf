@@ -1,4 +1,4 @@
-gitrun:
+run:
   timeout: 5m
   allow-parallel-runners: true
 

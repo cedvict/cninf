@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/cedvict/cninf/test/utils"
+	"github.com/cedvict/cninf.git/test/utils"
 )
 
 const namespace = "cninf-system"

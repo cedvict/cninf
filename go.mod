@@ -1,4 +1,4 @@
-module github.com/cedvict/cninf
+module github.com/cedvict/cninf.git
 
 go 1.22.0
 
