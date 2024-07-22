@@ -64,7 +64,29 @@ spec:
           - --leader-elect
           - --health-probe-bind-address=:8081
         image: controller:latest
+        imagePullPolicy: IfNotPresent
         name: manager
+        env:
+          - name: ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: store-credentials
+                key: ACCESS_KEY_ID
+          - name: SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: store-credentials
+                key: SECRET_ACCESS_KEY
+          - name: REGION
+            valueFrom:
+              secretKeyRef:
+                name: store-credentials
+                key: REGION
+          - name: ENDPOINT_URL
+            valueFrom:
+              secretKeyRef:
+                name: store-credentials
+                key: ENDPOINT_URL
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

@@ -3,7 +3,7 @@ namespace: cninf-system
 
 # Value of this field is prepended to the
 # names of all resources, e.g. a deployment named
-# "wordpress" becomes "alices-wordpress".
+# "WordPress" becomes "alices-wordpress".
 # Note that it should also match with the prefix (text before '-') of the namespace
 # field above.
 namePrefix: cninf-
@@ -27,6 +27,7 @@ resources:
 #- ../prometheus
 # [METRICS] Expose the controller manager metrics service.
 - metrics_service.yaml
+- secret.yaml
 
 # Uncomment the patches line if you enable Metrics, and/or are using webhooks and cert-manager
 patches:

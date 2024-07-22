@@ -54,8 +54,6 @@ type StoreStatus struct {
 	State string `json:"state"`
 	// Message is a details about execution.
 	Message string `json:"message"`
-	// Error is a trace about execution.
-	Trace string `json:"trace"`
 }
 
 // +kubebuilder:object:root=true
