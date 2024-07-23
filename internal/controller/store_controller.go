@@ -25,7 +25,7 @@ import (
 	"reflect"
 
 	// AWS SDK imports
-	"github.com/aws/aws-sdk-go/aws"
+	// "github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 
 	// Kubernetes object imports
@@ -180,7 +180,7 @@ func (r *StoreReconciler) CreateResources(ctx context.Context, instance *cninfv1
 		bucketName = instance.Spec.Name
 		instance.Spec.Locked = true
 	}
-	input := &s3.CreateBucketInput{
+	/*input := &s3.CreateBucketInput{
 		Bucket:                     aws.String(bucketName),
 		ObjectLockEnabledForBucket: aws.Bool(instance.Spec.Locked),
 	}
@@ -197,7 +197,7 @@ func (r *StoreReconciler) CreateResources(ctx context.Context, instance *cninfv1
 	})
 	if err != nil {
 		return err
-	}
+	}*/
 
 	// Create the configmap
 	configMap := &v1.ConfigMap{
@@ -210,12 +210,13 @@ func (r *StoreReconciler) CreateResources(ctx context.Context, instance *cninfv1
 			Namespace: instance.Namespace,
 		},
 		Data: map[string]string{
-			"bucket":   bucketName,
-			"location": *bucket.Location,
+			"bucket": bucketName,
+			//"location": *bucket.Location,
+			"location": "",
 		},
 	}
-	err = r.Create(ctx, configMap)
-	if err != nil {
+
+	if err := r.Create(ctx, configMap); err != nil {
 		return err
 	}
 
@@ -239,7 +240,7 @@ func (r *StoreReconciler) DeleteResources(ctx context.Context, instance *cninfv1
 	}
 
 	// Delete the bucket
-	bucketName := fmt.Sprintf("%s-%s", instance.Namespace, instance.Spec.Name)
+	/*bucketName := fmt.Sprintf("%s-%s", instance.Namespace, instance.Spec.Name)
 	if instance.Spec.Shared {
 		bucketName = instance.Spec.Name
 	}
@@ -254,19 +255,19 @@ func (r *StoreReconciler) DeleteResources(ctx context.Context, instance *cninfv1
 			return err
 		}
 
-	}
+	}*/
 
 	// Delete the configmap
 	configMap := &v1.ConfigMap{}
-	err = r.Get(ctx, client.ObjectKey{
+	err := r.Get(ctx, client.ObjectKey{
 		Namespace: instance.Namespace,
 		Name:      fmt.Sprintf(configMapName, instance.Spec.Name),
 	}, configMap)
 	if err != nil {
 		return err
 	}
-	err = r.Delete(ctx, configMap)
-	if err != nil {
+
+	if err := r.Delete(ctx, configMap); err != nil {
 		return err
 	}
 
